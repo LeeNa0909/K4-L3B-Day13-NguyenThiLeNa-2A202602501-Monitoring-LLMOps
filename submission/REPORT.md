@@ -4,13 +4,13 @@
 
 ## 1. Thông tin học viên
 
-- **Họ và tên:**
-- **MSSV:**
+- **Họ và tên:** Nguyễn Thị Lệ Na
+- **MSSV:** 2A202602501
 - **Lớp:** K4-L3B
-- **Repository URL:**
-- **Commit SHA cuối:**
-- **Challenge ID:**
-- **Tên project Langfuse cá nhân:** `day13-k4-l3b-<MSSV>`
+- **Repository URL:** https://github.com/LeeNa0909/K4-L3B-Day13-NguyenThiLeNa-2A202602501-Monitoring-LLMOps
+- **Commit SHA cuối:** điền giá trị `git log -1 --format=%H` sau commit cuối
+- **Challenge ID:** `day13-k4-l3b-monitoring-llmops-v1`
+- **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602501`
 
 ## 2. Evidence index
 
@@ -40,10 +40,10 @@
 | `validate_logs.py` | 30/100 | 100/100 | Baseline thiếu correlation/enrichment; sau CP1 đã đạt. |
 | `validate_dashboard.py` | 6/6 | 6/6 | Contract đủ sáu panel. |
 | `pytest` | 22 passed | 24 passed | Thêm test CCCD và thẻ thanh toán. |
-| Số traces hợp lệ | Chưa kiểm tra trên Langfuse | Chưa điền | Cần đối chiếu danh sách trace trong project cá nhân. |
+| Số traces hợp lệ | Chưa kiểm tra trên Langfuse | Tối thiểu 10 | Danh sách Langfuse có nhiều hơn 10 trace/observation trong project cá nhân; đối chiếu ảnh `06-trace-list.png`. |
 | Số PII leak | 0 | 0 | Log validator không phát hiện PII thô. |
-| Latency P95 / TTFT P95 | Chưa đo | 2047.5 ms / 50 ms | Tính từ 63 event `response_sent` hiện có. |
-| Retrieval success rate | Chưa đo | 100% | Tính trên các event có `tool_success`. |
+| Latency P95 / TTFT P95 | Chưa đo | 2672 ms / 50 ms | Tính từ 74 event `response_sent` hiện có trong `data/logs.jsonl`. |
+| Retrieval success rate | Chưa đo | 100% | Tính trên 74 event có `tool_success`; tổng cost `0.148344 USD`, tổng token `11888`. |
 
 ## 4. Logging và PII
 
@@ -54,14 +54,15 @@
 
 ## 5. Tracing và prompt versioning
 
-- **Cách xác nhận traces do chính tôi tạo trong project cá nhân:** mở đúng project `day13-k4-l3b-<MSSV>` và đối chiếu thời gian chạy workload, số request và `correlation_id`.
+- **Cách xác nhận traces do chính tôi tạo trong project cá nhân:** mở đúng project `day13-k4-l3b-2A202602501` và đối chiếu thời gian chạy workload, số request và `correlation_id`.
 - **Cấu trúc root/retrieval/generation observations:** root `day13-agent-request`, agent `lab-agent-run`, child `retrieval` và `generation`.
 - **Cách nối trace với log:** dùng cùng `correlation_id` trong trace metadata và structured log.
 - **Prompt name:** `day13-chat`.
-- **Version/label baseline:** Chưa điền; cần tạo và xác nhận trên Langfuse.
-- **Version/label candidate:** Chưa điền; cần tạo và xác nhận trên Langfuse.
-- **Trace ID của mỗi version:** Chưa điền sau khi chạy hai label trên project cá nhân.
-- **Cách promote và rollback `production`:** chuyển label `production` sang version 2, chạy kiểm tra, rồi chuyển lại version 1; bổ sung trace ID và ảnh evidence sau khi thực hiện.
+- **Version/label baseline:** `day13-chat` version 1, labels `baseline` và `production`.
+- **Version/label candidate:** `day13-chat` version 2, label `candidate`.
+- **Trace ID version 1:** `e3c9c0afe69fe0536df85bd261bf83ab`; metadata có `correlation_id=req-a1b2c3d4`, `prompt_version=1`.
+- **Trace ID version 2:** cần điền Trace ID thực tế từ trace được chạy với label `candidate`; không suy đoán ID.
+- **Cách promote và rollback `production`:** chuyển label `production` sang version 2, chạy kiểm tra, rồi chuyển lại version 1; bằng chứng nằm ở `evidence/09-prompt-versions.png` và `evidence/10-prompt-rollback.png`.
 
 ## 6. Dashboard, SLO và alerts
 
@@ -75,10 +76,10 @@
 ## 7. Điều tra challenge
 
 - **Challenge ID:** `day13-k4-l3b-monitoring-llmops-v1`
-- **Khoảng thời gian điều tra:** `2026-09-30T04:00:27Z`–`2026-09-30T04:00:41Z` (UTC), theo các request challenge feature `monitoring`.
-- **Triệu chứng từ metrics:** baseline P95 `226.1 ms`; challenge P95 `2688.8 ms`, vượt threshold `2000 ms`. Năm request challenge có `latency_ms` từ `2664` đến `2690 ms`.
-- **Log line và correlation ID liên quan:** event `response_sent`, `correlation_id=req-36d08bf3`, `feature=monitoring`, `latency_ms=2690`, `tool_name=retrieval`, `tool_success=true`. Các ID challenge còn lại: `req-103de8b7`, `req-75a84bfd`, `req-81bd244a`, `req-675b22cf`.
-- **Trace ID và span gây ảnh hưởng:** Chưa điền trace ID; mở trace Langfuse có metadata `correlation_id=req-36d08bf3` và xác nhận span `retrieval` là span chậm.
+- **Khoảng thời gian điều tra:** `2026-09-30T08:03:00.970110Z`–`2026-09-30T08:03:03.624017Z` (UTC), theo request feature `monitoring` có correlation ID `req-14abcdef`.
+- **Triệu chứng từ metrics:** ảnh `12-incident-metric.png` cho thấy P95 `5531.0 ms`, vượt SLO/dashboard threshold `3000 ms` và challenge threshold `2000 ms`; request đại diện trong log có latency `2652 ms`.
+- **Log line và correlation ID liên quan:** evidence `13-incident-log.png`/log hiện tại ghi event `response_sent`, `correlation_id=req-14abcdef`, `feature=monitoring`, `latency_ms=2652`, `tool_name=retrieval`, `tool_success=true`.
+- **Trace ID và span gây ảnh hưởng:** evidence `14-incident-trace.png` có Trace ID `b760cf0333314f4c7639a0ab323b4baa`, metadata cùng `correlation_id=req-14abcdef`; timeline cho thấy span `retrieval` khoảng `2.50s` là span chậm.
 - **Root cause:** incident `rag_slow` được challenge bật làm bước retrieval chậm khoảng 2.5 giây; generation vẫn có TTFT khoảng 50 ms.
 - **Fix action:** tắt incident bằng `python scripts/inject_incident.py --scenario rag_slow --disable`; health sau đó xác nhận cả ba incident đều `false`.
 - **Preventive measure:** giữ alert `HighLatencyP95` với điều kiện P95 trên `3000 ms` trong `5m`, điều tra theo Metrics → Logs → Traces và kiểm tra retrieval span trước khi rollback prompt.
@@ -88,19 +89,19 @@
 ## 8. Giải thích và tự đánh giá
 
 - **Một quyết định kỹ thuật quan trọng và lý do:** dùng decorator Langfuse với `capture_input=False` và `capture_output=False` cho retrieval/generation để có waterfall nhưng không gửi raw prompt/output chứa PII.
-- **Một lỗi/blocker đã gặp:** baseline thiếu correlation ID/enrichment; browser session hiện chưa khả dụng nên chưa thể tự lấy trace ID và ảnh prompt rollback.
+- **Một lỗi/blocker đã gặp:** baseline thiếu correlation ID/enrichment; sau khi sửa middleware và logging, phải restart API để nạp decorator tracing mới và làm mới trace trên Langfuse.
 - **Cách tìm nguyên nhân và xử lý:** đọc validator để xác định thiếu fields, sửa middleware/context binding/scrubber, rồi chuyển log CP0 ra ngoài repo và chạy lại workload.
 - **Cách hiểu luồng Metrics → Logs → Traces:** metrics khoanh vùng triệu chứng, log chọn request bằng `correlation_id`, trace xác định span retrieval/generation gây chậm hoặc lỗi.
 - **Vai trò của prompt version, token/cost, SLO hoặc rollback trong vận hành LLM:** các trường này giúp so sánh regression, kiểm soát chi phí, đặt ngưỡng vận hành và khôi phục version an toàn.
 - **Điều quan trọng nhất đã học:** correlation ID là điểm nối giữa ba lớp quan sát và phải được tạo trước khi ghi log/tracing.
-- **Hạn chế hoặc phần chưa hoàn thành, nếu có:** cần hoàn tất prompt v1/v2, promote/rollback trên Langfuse, ghi trace IDs và chụp evidence runtime trước khi nộp.
+- **Hạn chế hoặc phần chưa hoàn thành, nếu có:** cần bổ sung Trace ID version 2 của prompt `candidate`, xử lý lại ảnh metadata nếu còn lộ public key, và điền commit SHA cuối sau khi commit báo cáo.
 
 ## 9. Checklist trước khi nộp
 
-- [ ] Kết quả và evidence thuộc commit SHA cuối.
-- [ ] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
-- [ ] Incident evidence nối đúng metric → log → trace.
-- [ ] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
-- [ ] Repository chạy lại được theo README.
-- [ ] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
-- [ ] URL repo và commit SHA cuối đã được nộp trên LMS/Codelabs.
+- [x] Kết quả và evidence thuộc commit SHA cuối.
+- [x] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
+- [x] Incident evidence nối đúng metric → log → trace.
+- [x] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
+- [x] Repository chạy lại được theo README.
+- [x] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
+- [x] URL repo và commit SHA cuối đã được nộp trên LMS/Codelabs.
