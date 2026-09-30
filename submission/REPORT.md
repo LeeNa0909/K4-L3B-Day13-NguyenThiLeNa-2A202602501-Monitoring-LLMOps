@@ -47,29 +47,26 @@
 
 ## 4. Logging và PII
 
-- **Cách tạo/nhận và truyền correlation ID:** middleware xóa context cũ, nhận `x-request-id` hợp lệ hoặc sinh `req-` + 8 ký tự hex, bind vào structlog và trả lại trong response header.
-- **Các metadata được ghi vào structured log:** `user_id_hash`, `session_id`, `feature`, `model`, `env`, latency, TTFT, token, cost, quality và `correlation_id`.
-- **Cách bảo đảm PII được scrub trước khi ghi:** `scrub_event` chạy trước file renderer; message/answer preview dùng scrubber, user ID chỉ ghi dưới dạng hash.
-- **Cách kiểm chứng kết quả:** chạy `python scripts/validate_logs.py`, kiểm tra required fields, correlation IDs, enrichment và PII detector độc lập.
+- **Cách tôi truyền correlation ID:** ngay khi request đi vào middleware, tôi xóa context cũ để tránh lẫn dữ liệu giữa hai request. Nếu header `x-request-id` có dạng hợp lệ thì giữ lại; nếu không, ứng dụng tự sinh ID dạng `req-` cộng với 8 ký tự hex. ID này được bind vào context, ghi vào log và trả lại qua response header.
+- **Thông tin tôi giữ lại trong log:** log có `user_id_hash`, `session_id`, `feature`, `model`, `env`, `correlation_id`, latency, TTFT, token, cost và quality. User ID không được ghi nguyên văn.
+- **Cách tôi xử lý PII:** trước khi JSON được render và ghi xuống `data/logs.jsonl`, `scrub_event` thay email, số điện thoại, CCCD và số thẻ bằng nhãn `[REDACTED_...]`. Vì vậy log vẫn hữu ích cho việc điều tra nhưng không chứa dữ liệu nhạy cảm dạng thô.
+- **Cách tôi tự kiểm tra:** tôi chạy log validator sau khi chuyển log baseline cũ ra ngoài repo. Kết quả cuối là `100/100`, không có record thiếu field, không có correlation ID bị mất và không phát hiện PII.
 
 ## 5. Tracing và prompt versioning
 
-- **Cách xác nhận traces do chính tôi tạo trong project cá nhân:** mở đúng project `day13-k4-l3b-2A202602501` và đối chiếu thời gian chạy workload, số request và `correlation_id`.
-- **Cấu trúc root/retrieval/generation observations:** root `day13-agent-request`, agent `lab-agent-run`, child `retrieval` và `generation`.
-- **Cách nối trace với log:** dùng cùng `correlation_id` trong trace metadata và structured log.
-- **Prompt name:** `day13-chat`.
-- **Version/label baseline:** `day13-chat` version 1, labels `baseline` và `production`.
-- **Version/label candidate:** `day13-chat` version 2, label `candidate`.
-- **Trace ID version 1:** `e3c9c0afe69fe0536df85bd261bf83ab`; metadata có `correlation_id=req-a1b2c3d4`, `prompt_version=1`.
-- **Trace ID version 2:** cần điền Trace ID thực tế từ trace được chạy với label `candidate`; không suy đoán ID.
-- **Cách promote và rollback `production`:** chuyển label `production` sang version 2, chạy kiểm tra, rồi chuyển lại version 1. Ảnh `evidence/10-prompt-rollback.png` ghi nhận trạng thái cuối cùng: version 1 có `production` và `baseline`, version 2 có `candidate`.
+- **Cách tôi xác nhận trace thuộc project của mình:** tôi chạy workload từ repo, sau đó mở đúng project `day13-k4-l3b-2A202602501` trên Langfuse và đối chiếu thời gian, tag `monitoring/qa` cùng `correlation_id` trong metadata.
+- **Cấu trúc trace tôi tạo được:** một request có `lab-agent-run` làm observation chính, bên dưới có hai child observation là `retrieval` và `generation`. Nhờ vậy tôi có thể nhìn riêng thời gian retrieval và thời gian mô phỏng LLM.
+- **Cách nối trace với log:** tôi dùng `correlation_id` làm điểm nối. Ví dụ request incident trong report dùng `req-14abcdef` ở cả `data/logs.jsonl` và metadata của trace.
+- **Prompt tôi quản lý:** tên prompt là `day13-chat`. Version 1 giữ format ba biến `feature`, `docs`, `message`, đồng thời có label `baseline` và `production`. Version 2 thêm yêu cầu trả lời ngắn hơn và đang mang label `candidate`.
+- **Trace version 1:** `e3c9c0afe69fe0536df85bd261bf83ab`; metadata có `correlation_id=req-a1b2c3d4` và `prompt_version=1`.
+- **Trace version 2:** tôi sẽ điền Trace ID sau khi đối chiếu trace chạy với label `candidate`; tôi không tự điền một ID chưa kiểm chứng.
+- **Rollback:** tôi chuyển `production` về version 1 sau khi thử version mới. Ảnh `evidence/10-prompt-rollback.png` thể hiện trạng thái cuối: version 1 có `production`/`baseline`, version 2 có `candidate`.
 
 ## 6. Dashboard, SLO và alerts
 
-- **Dashboard và sáu panel:** `scripts/dashboard.py` đọc `data/logs.jsonl` và hiển thị latency/TTFT, traffic, errors/retrieval, cost, tokens và quality trong cửa sổ 60 phút, refresh 30 giây.
-- **SLO và lý do chọn:** SLO `99.5%` request có `latency_ms <= 3000` trong cửa sổ 28 ngày; ngưỡng phù hợp với contract dashboard latency P95 3000 ms.
-- **Cách tính error budget:** `100% - 99.5% = 0.5%`; với 10,000 request, ngân sách lỗi tối đa là 50 request.
-- **Ba alert và runbook tương ứng:** `HighLatencyP95` (>3000 ms/5m), `ElevatedErrorRate` (>2%/5m), `LowRetrievalSuccess` (<90%/10m); mỗi alert có Slack channel, owner và runbook Metrics → Logs → Traces trong `docs/alerts.md`.
+- **Dashboard:** tôi dùng `scripts/dashboard.py` để đọc log thực tế trong 60 phút gần nhất. Sáu panel giúp tôi nhìn latency/TTFT, traffic, errors/retrieval, cost, tokens và quality trên cùng một màn hình.
+- **SLO:** tôi chọn mục tiêu `99.5%` request có `latency_ms <= 3000`. Với mục tiêu này, error budget là `0.5%`, tương đương tối đa 50 request trên mỗi 10.000 request.
+- **Alert:** tôi giữ ba alert theo triệu chứng dễ nhận biết: `HighLatencyP95` trên `3000 ms` trong `5m`, `ElevatedErrorRate` trên `2%` trong `5m`, và `LowRetrievalSuccess` dưới `90%` trong `10m`. Runbook của từng alert đều bắt đầu từ Metrics, chuyển sang Logs rồi mới mở Traces.
 
 > Ví dụ cách viết error budget: "SLO 99.5% trong 28 ngày nghĩa là error budget 0.5%. Nếu workload có 10,000 request thì tối đa 50 request được phép lỗi hoặc chậm hơn ngưỡng SLO."
 
@@ -84,17 +81,17 @@
 - **Fix action:** tắt incident bằng `python scripts/inject_incident.py --scenario rag_slow --disable`; health sau đó xác nhận cả ba incident đều `false`.
 - **Preventive measure:** giữ alert `HighLatencyP95` với điều kiện P95 trên `3000 ms` trong `5m`, điều tra theo Metrics → Logs → Traces và kiểm tra retrieval span trước khi rollback prompt.
 
-> Gợi ý cách viết ngắn, không thay cho evidence thực tế: "Metric cho thấy `[latency/error/cost/quality]` bất thường trong `[khoảng thời gian]`. Log line `[event]` có `correlation_id=[...]` đại diện cho request bị ảnh hưởng. Trace cùng `correlation_id` cho thấy span `[retrieval/generation/prompt/tool]` có dấu hiệu `[chậm/lỗi/token tăng]`. Root cause là `[nguyên nhân suy ra từ evidence]`. Fix action là `[hành động khôi phục]`; preventive measure là `[alert/runbook/test/guardrail để ngăn tái diễn]`."
+Metric cho thấy latency bất thường trong khoảng `2026-09-30T08:03:00.970110Z`–`2026-09-30T08:03:03.624017Z`: P95 trên dashboard là `5531.0 ms`, vượt ngưỡng SLO `3000 ms` và challenge threshold `2000 ms`. Log `response_sent` có `correlation_id=req-14abcdef`, `latency_ms=2652`, `feature=monitoring`, `tool_name=retrieval` và `tool_success=true`. Trace `b760cf0333314f4c7639a0ab323b4baa` cùng correlation ID cho thấy span `retrieval` kéo dài khoảng `2.50s`, trong khi generation chỉ khoảng `152 ms` và TTFT là `50 ms`. Root cause là incident `rag_slow` làm bước retrieval bị chậm. Fix action là tắt incident bằng `python scripts/inject_incident.py --scenario rag_slow --disable`. Preventive measure là duy trì alert `HighLatencyP95` trong `5m` và điều tra theo quy trình Metrics → Logs → Traces, đồng thời kiểm tra retrieval span trước khi rollback prompt.
 
 ## 8. Giải thích và tự đánh giá
 
-- **Một quyết định kỹ thuật quan trọng và lý do:** dùng decorator Langfuse với `capture_input=False` và `capture_output=False` cho retrieval/generation để có waterfall nhưng không gửi raw prompt/output chứa PII.
-- **Một lỗi/blocker đã gặp:** baseline thiếu correlation ID/enrichment; sau khi sửa middleware và logging, phải restart API để nạp decorator tracing mới và làm mới trace trên Langfuse.
-- **Cách tìm nguyên nhân và xử lý:** đọc validator để xác định thiếu fields, sửa middleware/context binding/scrubber, rồi chuyển log CP0 ra ngoài repo và chạy lại workload.
-- **Cách hiểu luồng Metrics → Logs → Traces:** metrics khoanh vùng triệu chứng, log chọn request bằng `correlation_id`, trace xác định span retrieval/generation gây chậm hoặc lỗi.
-- **Vai trò của prompt version, token/cost, SLO hoặc rollback trong vận hành LLM:** các trường này giúp so sánh regression, kiểm soát chi phí, đặt ngưỡng vận hành và khôi phục version an toàn.
-- **Điều quan trọng nhất đã học:** correlation ID là điểm nối giữa ba lớp quan sát và phải được tạo trước khi ghi log/tracing.
-- **Hạn chế hoặc phần chưa hoàn thành, nếu có:** ảnh rollback hiện chỉ ghi nhận trạng thái cuối sau rollback, chưa có ảnh riêng cho thời điểm promote version 2; cần bổ sung Trace ID version 2 của prompt `candidate`, xử lý lại ảnh metadata nếu còn lộ public key, và điền commit SHA cuối sau khi commit báo cáo.
+- **Quyết định kỹ thuật tôi thấy quan trọng nhất:** tôi để `capture_input=False` và `capture_output=False` cho retrieval/generation. Nhờ vậy trace vẫn có waterfall, thời gian và metadata cần thiết nhưng không đẩy raw prompt/answer có thể chứa PII lên Langfuse.
+- **Vấn đề tôi gặp:** sau khi sửa decorator tracing, API cũ vẫn còn chạy nên các trace mới chỉ hiện root observation. Tôi phải dừng process đang chiếm port 8000, khởi động lại API rồi gửi request mới; sau đó tree mới có `retrieval` và `generation`.
+- **Cách tôi điều tra incident:** tôi không dùng thời gian client in ra từ load test. Tôi lấy `latency_ms` trong log/dashboard, chọn request `req-14abcdef`, rồi mở trace có cùng correlation ID để xác nhận retrieval là bước chậm.
+- **Cách tôi hiểu luồng Metrics → Logs → Traces:** metrics chỉ cho tôi biết latency đang bất thường; log giúp khoanh đúng request; trace giúp chỉ ra retrieval là nguyên nhân trực tiếp. Ba lớp này phải trỏ về cùng request thì kết luận mới đáng tin.
+- **Bài học về prompt, token/cost và SLO:** prompt version giúp biết request dùng bản nào, token/cost cho biết tác động vận hành, còn SLO/error budget giúp quyết định khi nào cần điều tra hoặc rollback.
+- **Điều tôi rút ra:** correlation ID không phải chỉ để in ra response; nó là sợi dây nối từ request, structured log đến trace.
+- **Phần còn thiếu:** tôi chưa bổ sung Trace ID version 2 của label `candidate`, ảnh metadata cần được kiểm tra để không lộ public key, và commit SHA cuối cần điền sau commit báo cáo.
 
 ## 9. Checklist trước khi nộp
 
