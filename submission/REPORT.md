@@ -62,7 +62,7 @@
 - **Version/label candidate:** `day13-chat` version 2, label `candidate`.
 - **Trace ID version 1:** `e3c9c0afe69fe0536df85bd261bf83ab`; metadata có `correlation_id=req-a1b2c3d4`, `prompt_version=1`.
 - **Trace ID version 2:** cần điền Trace ID thực tế từ trace được chạy với label `candidate`; không suy đoán ID.
-- **Cách promote và rollback `production`:** chuyển label `production` sang version 2, chạy kiểm tra, rồi chuyển lại version 1; bằng chứng nằm ở `evidence/09-prompt-versions.png` và `evidence/10-prompt-rollback.png`.
+- **Cách promote và rollback `production`:** chuyển label `production` sang version 2, chạy kiểm tra, rồi chuyển lại version 1. Ảnh `evidence/10-prompt-rollback.png` ghi nhận trạng thái cuối cùng: version 1 có `production` và `baseline`, version 2 có `candidate`.
 
 ## 6. Dashboard, SLO và alerts
 
@@ -79,7 +79,7 @@
 - **Khoảng thời gian điều tra:** `2026-09-30T08:03:00.970110Z`–`2026-09-30T08:03:03.624017Z` (UTC), theo request feature `monitoring` có correlation ID `req-14abcdef`.
 - **Triệu chứng từ metrics:** ảnh `12-incident-metric.png` cho thấy P95 `5531.0 ms`, vượt SLO/dashboard threshold `3000 ms` và challenge threshold `2000 ms`; request đại diện trong log có latency `2652 ms`.
 - **Log line và correlation ID liên quan:** evidence `13-incident-log.png`/log hiện tại ghi event `response_sent`, `correlation_id=req-14abcdef`, `feature=monitoring`, `latency_ms=2652`, `tool_name=retrieval`, `tool_success=true`.
-- **Trace ID và span gây ảnh hưởng:** evidence `14-incident-trace.png` có Trace ID `b760cf0333314f4c7639a0ab323b4baa`, metadata cùng `correlation_id=req-14abcdef`; timeline cho thấy span `retrieval` khoảng `2.50s` là span chậm.
+- **Trace ID và span gây ảnh hưởng:** evidence `14-incident-trace.png` có Trace ID `b760cf0333314f4c7639a0ab323b4baa`, metadata cùng `correlation_id=req-14abcdef`; cây trace cho thấy span `retrieval` khoảng `2.50s` là span chậm.
 - **Root cause:** incident `rag_slow` được challenge bật làm bước retrieval chậm khoảng 2.5 giây; generation vẫn có TTFT khoảng 50 ms.
 - **Fix action:** tắt incident bằng `python scripts/inject_incident.py --scenario rag_slow --disable`; health sau đó xác nhận cả ba incident đều `false`.
 - **Preventive measure:** giữ alert `HighLatencyP95` với điều kiện P95 trên `3000 ms` trong `5m`, điều tra theo Metrics → Logs → Traces và kiểm tra retrieval span trước khi rollback prompt.
@@ -94,14 +94,14 @@
 - **Cách hiểu luồng Metrics → Logs → Traces:** metrics khoanh vùng triệu chứng, log chọn request bằng `correlation_id`, trace xác định span retrieval/generation gây chậm hoặc lỗi.
 - **Vai trò của prompt version, token/cost, SLO hoặc rollback trong vận hành LLM:** các trường này giúp so sánh regression, kiểm soát chi phí, đặt ngưỡng vận hành và khôi phục version an toàn.
 - **Điều quan trọng nhất đã học:** correlation ID là điểm nối giữa ba lớp quan sát và phải được tạo trước khi ghi log/tracing.
-- **Hạn chế hoặc phần chưa hoàn thành, nếu có:** cần bổ sung Trace ID version 2 của prompt `candidate`, xử lý lại ảnh metadata nếu còn lộ public key, và điền commit SHA cuối sau khi commit báo cáo.
+- **Hạn chế hoặc phần chưa hoàn thành, nếu có:** ảnh rollback hiện chỉ ghi nhận trạng thái cuối sau rollback, chưa có ảnh riêng cho thời điểm promote version 2; cần bổ sung Trace ID version 2 của prompt `candidate`, xử lý lại ảnh metadata nếu còn lộ public key, và điền commit SHA cuối sau khi commit báo cáo.
 
 ## 9. Checklist trước khi nộp
 
-- [x] Kết quả và evidence thuộc commit SHA cuối.
+- [ ] Kết quả và evidence thuộc commit SHA cuối.
 - [x] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
-- [x] Incident evidence nối đúng metric → log → trace.
-- [x] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
+- [ ] Incident evidence nối đúng metric → log → trace sau khi thay ảnh 13/14 bằng cùng request `req-14abcdef`.
+- [ ] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret; cần thay ảnh 08 nếu còn dòng public key.
 - [x] Repository chạy lại được theo README.
-- [x] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
-- [x] URL repo và commit SHA cuối đã được nộp trên LMS/Codelabs.
+- [ ] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
+- [ ] URL repo và commit SHA cuối đã được nộp trên LMS/Codelabs.
